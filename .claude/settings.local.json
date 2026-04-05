@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git -C /d/code/Experment/github-stats log --oneline -10)"
+    ]
+  }
+}
