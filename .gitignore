@@ -1,1 +1,10 @@
 .env
+
+.claude
+
+*/__pycache__/
+*.pyc
+
+temp/
+
+.venv/

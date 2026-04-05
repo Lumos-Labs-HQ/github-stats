@@ -9,11 +9,17 @@ from dotenv import load_dotenv
 from app.github import fetch_github_stats
 from app.services.stats import calculate_streaks
 from app.services.cache import CacheService
-from app.services.svg import generate_stats_svg, generate_error_svg
+from app.services.svg import (
+    generate_stats_svg,
+    generate_error_svg,
+    resolve_theme,
+    get_available_themes,
+)
 
 load_dotenv()
 
 cache_service = CacheService(os.getenv("REDIS_URL", "redis://localhost:6379"))
+CARD_VERSION = "v4"
 
 
 def _month_year_range(month: int, year: int) -> tuple:
@@ -44,9 +50,40 @@ app = FastAPI(
 
 
 @app.get("/stats")
-async def get_stats(username: str, month: Optional[int] = None, year: Optional[int] = None):
+async def get_stats(
+    username: str,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    theme: Optional[str] = None,
+    stroke: Optional[str] = None,
+    background: Optional[str] = None,
+    ring: Optional[str] = None,
+    fire: Optional[str] = None,
+    currStreakNum: Optional[str] = None,
+    currStreakLabel: Optional[str] = None,
+    sideNums: Optional[str] = None,
+    sideLabels: Optional[str] = None,
+    dates: Optional[str] = None,
+    hide_border: bool = False,
+):
     """Generate GitHub stats SVG card."""
-    cache_key = f"{username}_{year}_{month}" if (month and year) else username
+    cache_key = "|".join([
+        CARD_VERSION,
+        username,
+        str(year or ""),
+        str(month or ""),
+        str(theme or ""),
+        str(stroke or ""),
+        str(background or ""),
+        str(ring or ""),
+        str(fire or ""),
+        str(currStreakNum or ""),
+        str(currStreakLabel or ""),
+        str(sideNums or ""),
+        str(sideLabels or ""),
+        str(dates or ""),
+        str(hide_border),
+    ])
 
     cached = await cache_service.get_stats(cache_key)
     if cached:
@@ -79,21 +116,31 @@ async def get_stats(username: str, month: Optional[int] = None, year: Optional[i
         )
 
     streaks = calculate_streaks(stats_data["days"])
-    period_label = f" ({year}-{month:02d})" if (month and year) else ""
+    colors = resolve_theme(
+        theme=theme,
+        stroke=stroke,
+        background=background,
+        ring=ring,
+        fire=fire,
+        curr_streak_num=currStreakNum,
+        curr_streak_label=currStreakLabel,
+        side_nums=sideNums,
+        side_labels=sideLabels,
+        dates=dates,
+    )
 
     svg = generate_stats_svg(
-        username=username + period_label,
+        username=username,
         total_contributions=stats_data["total_contributions"],
         current_streak=streaks["current_streak"],
         longest_streak=streaks["longest_streak"],
-        public_repos=stats_data.get("public_repos", 0),
-        total_stars=stats_data.get("total_stars", 0),
-        top_language=stats_data.get("top_language"),
         first_contribution=streaks.get("first_contribution"),
         current_streak_start=streaks.get("current_streak_start"),
         current_streak_end=streaks.get("current_streak_end"),
         longest_streak_start=streaks.get("longest_streak_start"),
         longest_streak_end=streaks.get("longest_streak_end"),
+        colors=colors,
+        hide_border=hide_border,
     )
 
     await cache_service.set_stats(cache_key, {"svg": svg}, ttl=1800)  # 30 min
@@ -103,6 +150,19 @@ async def get_stats(username: str, month: Optional[int] = None, year: Optional[i
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/themes")
+async def themes():
+    return {
+        "themes": get_available_themes(),
+        "usage": "/stats?username=username&theme=default",
+        "custom_colors_example": (
+            "/stats?username=username&stroke=FF6F61&background=1E1E2E&ring=FF6F61&"
+            "fire=FF6F61&currStreakNum=FF6F61&currStreakLabel=FF6F61&"
+            "sideNums=FF6F61&sideLabels=FF6F61&dates=FF6F61&hide_border=true"
+        ),
+    }
 
 
 @app.get("/debug")

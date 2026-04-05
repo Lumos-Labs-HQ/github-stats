@@ -79,9 +79,9 @@ def calculate_streaks(
     first_contribution_date = contributions[0][0]
 
     # ------------------------------------------------------------------
-    # Current streak: count backwards from today
+    # Current streak: count backwards from today, or yesterday if today is 0
     # ------------------------------------------------------------------
-    check_date = today
+    check_date = today if contrib_dict.get(today, 0) > 0 else today - timedelta(days=1)
     current_streak = 0
     current_streak_end: Optional[date] = None
     current_streak_start: Optional[date] = None

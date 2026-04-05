@@ -61,6 +61,27 @@ docker-compose up -d
 GET /stats?username={github_username}
 ```
 
+This endpoint now renders a streak-style card only (Total Contributions, Current Streak, Longest Streak).
+Extra blocks like public repos, total stars, and top language are not shown.
+
+Theme support:
+
+```
+GET /stats?username=username&theme=default
+```
+
+Available theme names:
+
+```
+GET /themes
+```
+
+Color override support (same parameter style as streak stats generators):
+
+```
+GET /stats?username=username&stroke=FF6F61&background=1E1E2E&ring=FF6F61&fire=FF6F61&currStreakNum=FF6F61&currStreakLabel=FF6F61&sideNums=FF6F61&sideLabels=FF6F61&dates=FF6F61&hide_border=true
+```
+
 **Response:** SVG image (image/svg+xml)
 
 **Example:**
