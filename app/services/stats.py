@@ -1,29 +1,41 @@
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-def calculate_streaks(days: List[Dict[str, any]]) -> dict:
+def calculate_streaks(days: List[Dict[str, any]], month: Optional[int] = None, year: Optional[int] = None) -> dict:
     """Calculate current and longest contribution streaks"""
     if not days:
-        return {"current_streak": 0, "longest_streak": 0}
+        return {"current_streak": 0, "longest_streak": 0, "total_contributions": 0}
     
     # Sort by date
     sorted_days = sorted(days, key=lambda x: x["date"])
     
-    # Convert to date objects and filter out future dates
+    # Convert to date objects and filter
     today = datetime.utcnow().date()
     contributions = []
+    total_contributions = 0
     
     for day in sorted_days:
         date = datetime.fromisoformat(day["date"]).date()
         if date <= today:
-            contributions.append((date, day["count"]))
+            # Filter by month/year if specified
+            if month and year:
+                if date.month == month and date.year == year:
+                    contributions.append((date, day["count"]))
+                    total_contributions += day["count"]
+            else:
+                contributions.append((date, day["count"]))
+                total_contributions += day["count"]
     
     if not contributions:
-        return {"current_streak": 0, "longest_streak": 0}
+        return {"current_streak": 0, "longest_streak": 0, "total_contributions": 0}
     
-    # Calculate current streak (from today backwards)
+    # Calculate current streak (from today or end of month backwards)
     current_streak = 0
-    check_date = today
+    if month and year:
+        # For specific month, start from last day of that month or today
+        check_date = min(today, contributions[-1][0])
+    else:
+        check_date = today
     
     # Create a dict for quick lookup
     contrib_dict = {date: count for date, count in contributions}
@@ -54,5 +66,6 @@ def calculate_streaks(days: List[Dict[str, any]]) -> dict:
     
     return {
         "current_streak": current_streak,
-        "longest_streak": longest_streak
+        "longest_streak": longest_streak,
+        "total_contributions": total_contributions
     }
