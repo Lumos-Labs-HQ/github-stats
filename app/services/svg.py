@@ -19,6 +19,17 @@ _THEMES = {
     "sideLabels": "#ff7a70",
     "dates": "#ff7a70",
   },
+  "tokyonight": {
+    "background": "#1a1b27",
+    "stroke": "#414868",
+    "ring": "#fe428e",
+    "fire": "#e3b341",
+    "currStreakNum": "#fe428e",
+    "currStreakLabel": "#fe428e",
+    "sideNums": "#a9fef7",
+    "sideLabels": "#a9fef7",
+    "dates": "#a9fef7",
+  },
   "github-dark": {
     "background": "#0d1117",
     "stroke": "#30363d",
@@ -167,77 +178,77 @@ def generate_stats_svg(
 
     border = "none" if hide_border else colors["stroke"]
 
-    svg = f'''<svg width="632" height="251" viewBox="0 0 632 251" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+    svg = f'''<svg width="360" height="162" viewBox="0 0 360 162" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
   <title id="title">{_esc(username)} GitHub stats</title>
   <defs>
     <style>
-      .title {{ font: 700 18px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["currStreakNum"]}; }}
-      .label {{ font: 700 10px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["sideLabels"]}; }}
-      .value {{ font: 700 10px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["sideNums"]}; }}
-      .subtle {{ font: 400 8px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["dates"]}; }}
-      .icon {{ fill: none; stroke: {colors["fire"]}; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }}
-      .ring-grade {{ font: 700 26px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["currStreakNum"]}; }}
+      .title {{ font: 700 19px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["currStreakNum"]}; }}
+      .label {{ font: 700 13px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["sideLabels"]}; }}
+      .value {{ font: 700 13px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["sideNums"]}; }}
+      .subtle {{ font: 400 9px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["dates"]}; }}
+      .icon {{ fill: none; stroke: {colors["fire"]}; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }}
+      .ring-grade {{ font: 700 25px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["currStreakNum"]}; }}
     </style>
   </defs>
 
-  <rect x="1" y="1" width="630" height="249" rx="4" fill="{colors["background"]}" stroke="{border}" stroke-width="2"/>
+  <rect x="1" y="1" width="358" height="160" rx="4" fill="{colors["background"]}" stroke="{border}" stroke-width="2"/>
 
-  <text x="26" y="40" class="title">{_esc(username)}'s GitHub Stats</text>
+  <text x="16" y="30" class="title">{_esc(username)}'s GitHub Stats</text>
 
-  <g transform="translate(26, 66)">
+  <g transform="translate(16, 42)">
     <g transform="translate(0, 0)">
       <path class="icon" d="M10 1.5l2.1 4.3 4.8.7-3.5 3.4.8 4.9L10 12.5 5.8 14.8l.8-4.9L3.1 6.5l4.8-.7L10 1.5z"/>
-      <text x="24" y="11" class="label">Total Stars Earned:</text>
-      <text x="276" y="11" class="value" text-anchor="end">{total_stars:,}</text>
+      <text x="22" y="11" class="label">Total Stars Earned:</text>
+      <text x="222" y="11" class="value" text-anchor="end">{total_stars:,}</text>
     </g>
 
-    <g transform="translate(0, 27)">
+    <g transform="translate(0, 21)">
       <circle class="icon" cx="10" cy="8" r="7"/>
       <path class="icon" d="M10 8V4.5M10 8l3.2 1.8"/>
       <path class="icon" d="M2 2.2h2.8M14.8 2.2h2.8"/>
-      <text x="24" y="11" class="label">{_esc(commits_label)}:</text>
-      <text x="276" y="11" class="value" text-anchor="end">{total_commits:,}</text>
-      <text x="24" y="23" class="subtle">{_esc(private_label)}</text>
+      <text x="22" y="11" class="label">{_esc(commits_label)}:</text>
+      <text x="222" y="11" class="value" text-anchor="end">{total_commits:,}</text>
+      <text x="22" y="22" class="subtle">{_esc(private_label)}</text>
     </g>
 
-    <g transform="translate(0, 54)">
+    <g transform="translate(0, 42)">
       <circle class="icon" cx="4" cy="5" r="2"/>
       <circle class="icon" cx="16" cy="2" r="2"/>
       <circle class="icon" cx="16" cy="14" r="2"/>
       <path class="icon" d="M6 5h5a3 3 0 0 0 3-3M6 5h5a3 3 0 0 1 3 3"/>
-      <text x="24" y="11" class="label">Total PRs:</text>
-      <text x="276" y="11" class="value" text-anchor="end">{total_prs:,}</text>
+      <text x="22" y="11" class="label">Total PRs:</text>
+      <text x="222" y="11" class="value" text-anchor="end">{total_prs:,}</text>
     </g>
 
-    <g transform="translate(0, 81)">
+    <g transform="translate(0, 63)">
       <circle class="icon" cx="10" cy="8" r="7"/>
       <path class="icon" d="M10 4.2v4.7M10 11.8h.01"/>
-      <text x="24" y="11" class="label">Total Issues:</text>
-      <text x="276" y="11" class="value" text-anchor="end">{total_issues:,}</text>
+      <text x="22" y="11" class="label">Total Issues:</text>
+      <text x="222" y="11" class="value" text-anchor="end">{total_issues:,}</text>
     </g>
 
-    <g transform="translate(0, 108)">
+    <g transform="translate(0, 84)">
       <rect class="icon" x="3" y="2" width="14" height="12" rx="1.5"/>
       <path class="icon" d="M3 6h14M7 14v3M13 14v3"/>
-      <text x="24" y="11" class="label">Contributed to:</text>
-      <text x="276" y="11" class="value" text-anchor="end">{contributed_to:,}</text>
+      <text x="22" y="11" class="label">Contributed to:</text>
+      <text x="222" y="11" class="value" text-anchor="end">{contributed_to:,}</text>
     </g>
   </g>
 
-  <g transform="translate(500, 126)">
-    <circle cx="0" cy="0" r="52" fill="none" stroke="{colors["stroke"]}" stroke-opacity="0.35" stroke-width="8"/>
+  <g transform="translate(312, 84)">
+    <circle cx="0" cy="0" r="41" fill="none" stroke="{colors["stroke"]}" stroke-opacity="0.35" stroke-width="7"/>
     <circle
       cx="0"
       cy="0"
-      r="52"
+      r="41"
       fill="none"
       stroke="{colors["ring"]}"
-      stroke-width="8"
+      stroke-width="7"
       stroke-linecap="round"
       transform="rotate(-90)"
       stroke-dasharray="{filled} {remaining}"
     />
-    <text x="0" y="10" class="ring-grade" text-anchor="middle">{grade}</text>
+    <text x="0" y="9" class="ring-grade" text-anchor="middle">{grade}</text>
   </g>
 </svg>'''
 
@@ -288,16 +299,16 @@ def generate_streak_svg(
 
   <rect x="1" y="1" width="630" height="249" rx="4" fill="{colors["background"]}" stroke="{border}" stroke-width="2"/>
 
-  <line x1="224" y1="34" x2="224" y2="216" stroke="{colors["stroke"]}" stroke-width="2"/>
-  <line x1="408" y1="34" x2="408" y2="216" stroke="{colors["stroke"]}" stroke-width="2"/>
+  <line x1="224" y1="38" x2="224" y2="208" stroke="{colors["stroke"]}" stroke-width="2"/>
+  <line x1="408" y1="38" x2="408" y2="208" stroke="{colors["stroke"]}" stroke-width="2"/>
 
-  <g transform="translate(112, 116)">
+  <g transform="translate(112, 112)">
     <text x="0" y="0" class="value" text-anchor="middle">{total_contributions:,}</text>
     <text x="0" y="30" class="label" text-anchor="middle">Total Contributions</text>
     <text x="0" y="58" class="date" text-anchor="middle">{contrib_range}</text>
   </g>
 
-  <g transform="translate(316, 30)">
+  <g transform="translate(316, 26)">
     <path d="M 0 18 C -6 10 -7 -1 1 -10 C 0 -2 8 2 8 11 C 8 17 4 21 0 21 C -5 21 -9 17 -9 11 C -9 7 -7 3 -4 0 C -5 6 -3 12 0 18 Z" fill="{colors["fire"]}"/>
     <circle cx="0" cy="70" r="46" fill="none" stroke="{colors["ring"]}" stroke-width="5"/>
     <text x="0" y="85" class="ring-number" text-anchor="middle">{current_streak}</text>
@@ -305,7 +316,7 @@ def generate_streak_svg(
     <text x="0" y="186" class="date" text-anchor="middle">{cur_range}</text>
   </g>
 
-  <g transform="translate(520, 116)">
+  <g transform="translate(520, 112)">
     <text x="0" y="0" class="value" text-anchor="middle">{longest_streak}</text>
     <text x="0" y="30" class="label" text-anchor="middle">Longest Streak</text>
     <text x="0" y="58" class="date" text-anchor="middle">{long_range}</text>

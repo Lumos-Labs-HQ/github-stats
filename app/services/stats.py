@@ -25,8 +25,10 @@ def merge_contribution_windows(*windows: List[Dict]) -> List[Dict]:
     return [{"date": d, "count": c} for d, c in sorted(merged.items())]
 
 
-def _fmt_date(d: date) -> str:
-    """Format date as 'Jan 1, 2024' (cross-platform)."""
+def _fmt_date(d: date, current_year: Optional[int] = None) -> str:
+    """Format date as 'Jan 1, 2024' or 'Jan 1' when year matches current_year."""
+    if current_year and d.year == current_year:
+        return d.strftime("%b ") + str(d.day)
     return d.strftime("%b ") + str(d.day) + d.strftime(", %Y")
 
 
@@ -54,6 +56,7 @@ def calculate_streaks(
     sorted_days = sorted(days, key=lambda x: x["date"])
 
     today = datetime.utcnow().date()
+    current_year = today.year
     contributions = []
     total_contributions = 0
 
@@ -128,11 +131,11 @@ def calculate_streaks(
 
     return {
         "current_streak": current_streak,
-        "current_streak_start": _fmt_date(current_streak_start) if current_streak_start else None,
-        "current_streak_end": _fmt_date(current_streak_end) if current_streak_end else None,
+        "current_streak_start": _fmt_date(current_streak_start, current_year) if current_streak_start else None,
+        "current_streak_end": _fmt_date(current_streak_end, current_year) if current_streak_end else None,
         "longest_streak": longest_streak,
-        "longest_streak_start": _fmt_date(longest_streak_start) if longest_streak_start else None,
-        "longest_streak_end": _fmt_date(longest_streak_end) if longest_streak_end else None,
+        "longest_streak_start": _fmt_date(longest_streak_start, current_year) if longest_streak_start else None,
+        "longest_streak_end": _fmt_date(longest_streak_end, current_year) if longest_streak_end else None,
         "total_contributions": total_contributions,
-        "first_contribution": _fmt_date(first_contribution_date),
+        "first_contribution": _fmt_date(first_contribution_date, current_year),
     }

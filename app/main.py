@@ -20,7 +20,7 @@ from app.services.svg import (
 load_dotenv()
 
 cache_service = CacheService(os.getenv("REDIS_URL", "redis://localhost:6379"))
-CARD_VERSION = "v5"
+CARD_VERSION = "v9"
 
 
 def _month_year_range(month: int, year: int) -> tuple:
@@ -215,7 +215,7 @@ async def get_stats(
         )
 
     colors = resolve_theme(
-        theme=theme,
+        theme=theme or "tokyonight",
         stroke=stroke,
         background=background,
         ring=ring,
