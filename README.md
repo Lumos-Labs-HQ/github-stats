@@ -61,13 +61,36 @@ docker-compose up -d
 GET /stats?username={github_username}
 ```
 
-This endpoint now renders a streak-style card only (Total Contributions, Current Streak, Longest Streak).
-Extra blocks like public repos, total stars, and top language are not shown.
+This endpoint renders the full stats card:
+
+- Total Stars Earned
+- Total Commits (supports `year` filter)
+- Total PRs
+- Total Issues
+- Contributed to
+- Rank ring
+
+If `GITHUB_TOKEN` is set, private/restricted contributions are included in commit totals and shown as `(+N private)`.
+
+Year filter example:
+
+```
+GET /stats?username=username&year=2025
+```
+
+### Get Streak Card
+
+```
+GET /streak?username={github_username}
+```
+
+This endpoint renders streak stats (Total Contributions, Current Streak, Longest Streak) with optional `month` and `year` filters.
 
 Theme support:
 
 ```
 GET /stats?username=username&theme=default
+GET /streak?username=username&theme=default
 ```
 
 Available theme names:

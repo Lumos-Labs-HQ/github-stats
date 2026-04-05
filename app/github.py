@@ -1,7 +1,7 @@
 import asyncio
 import logging
+import os
 import re
-from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -21,6 +21,17 @@ _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; github-stats-bot/1.0)",
     "Accept": "application/json, text/html",
 }
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+
+def _auth_headers(accept: str = "application/json") -> dict:
+    headers = {
+        "User-Agent": _HEADERS["User-Agent"],
+        "Accept": accept,
+    }
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    return headers
 
 # ---------------------------------------------------------------------------
 # HTTP helper with retry + backoff
@@ -30,6 +41,7 @@ async def _get_with_retry(
     client: httpx.AsyncClient,
     url: str,
     params: Optional[dict] = None,
+    headers: Optional[dict] = None,
     max_attempts: int = 3,
 ) -> httpx.Response:
     """GET with exponential backoff retry on 5xx and network errors."""
@@ -41,7 +53,7 @@ async def _get_with_retry(
             response = await client.get(
                 url,
                 params=params,
-                headers=_HEADERS,
+                headers=headers or _HEADERS,
                 timeout=15.0,
                 follow_redirects=True,
             )
@@ -78,6 +90,67 @@ async def _get_with_retry(
 # ---------------------------------------------------------------------------
 # Contribution data
 # ---------------------------------------------------------------------------
+
+async def _fetch_contributions_from_graphql(username: str) -> Optional[dict]:
+        """Optional primary source when token exists: includes restricted/private counts."""
+        if not GITHUB_TOKEN:
+                return None
+
+        query = """
+        query($login: String!) {
+            user(login: $login) {
+                contributionsCollection {
+                    restrictedContributionsCount
+                    contributionCalendar {
+                        totalContributions
+                        weeks {
+                            contributionDays {
+                                date
+                                contributionCount
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+        try:
+                async with httpx.AsyncClient() as client:
+                        response = await client.post(
+                                "https://api.github.com/graphql",
+                                json={"query": query, "variables": {"login": username}},
+                                headers=_auth_headers("application/json"),
+                                timeout=15.0,
+                        )
+                if response.status_code != 200:
+                        return None
+
+                body = response.json()
+                user = ((body.get("data") or {}).get("user") or {})
+                if not user:
+                        return None
+
+                collection = user.get("contributionsCollection") or {}
+                calendar = collection.get("contributionCalendar") or {}
+
+                days = []
+                for week in calendar.get("weeks", []):
+                        for day in week.get("contributionDays", []):
+                                days.append({
+                                        "date": day.get("date"),
+                                        "count": int(day.get("contributionCount", 0) or 0),
+                                })
+
+                return {
+                        "total_contributions": int(calendar.get("totalContributions", 0) or 0),
+                        "restricted_count": int(collection.get("restrictedContributionsCount", 0) or 0),
+                        "days": [d for d in days if d["date"]],
+                }
+        except Exception as e:
+                logger.warning("GraphQL contributions failed: %s", e)
+                return None
+
 
 async def _fetch_contributions_from_api(username: str) -> Optional[list]:
     """
@@ -148,6 +221,10 @@ async def _fetch_contributions(username: str) -> dict:
     Fetch contribution calendar. Tries the contributions API first,
     falls back to parsing GitHub's SVG endpoint directly.
     """
+    graphql_data = await _fetch_contributions_from_graphql(username)
+    if graphql_data:
+        return graphql_data
+
     days = await _fetch_contributions_from_api(username)
 
     if not days:
@@ -174,22 +251,66 @@ async def _fetch_profile(username: str) -> dict:
     """Fetch user profile and repo stats via GitHub REST API (no auth required)."""
     async with httpx.AsyncClient() as client:
         user_task = asyncio.create_task(
-            _get_with_retry(client, f"{REST_ENDPOINT}/users/{username}")
+            _get_with_retry(
+                client,
+                f"{REST_ENDPOINT}/users/{username}",
+                headers=_auth_headers(),
+            )
         )
         repos_task = asyncio.create_task(
             _get_with_retry(
                 client,
                 f"{REST_ENDPOINT}/users/{username}/repos",
                 params={"per_page": 100, "type": "owner", "sort": "updated"},
+                headers=_auth_headers(),
             )
         )
-        user_resp, repos_resp = await asyncio.gather(user_task, repos_task)
+        prs_task = asyncio.create_task(
+            _get_with_retry(
+                client,
+                f"{REST_ENDPOINT}/search/issues",
+                params={"q": f"author:{username} type:pr", "per_page": 1},
+                headers=_auth_headers(),
+            )
+        )
+        issues_task = asyncio.create_task(
+            _get_with_retry(
+                client,
+                f"{REST_ENDPOINT}/search/issues",
+                params={"q": f"author:{username} type:issue", "per_page": 1},
+                headers=_auth_headers(),
+            )
+        )
+        events_task = asyncio.create_task(
+            _get_with_retry(
+                client,
+                f"{REST_ENDPOINT}/users/{username}/events/public",
+                params={"per_page": 100},
+                headers=_auth_headers(),
+            )
+        )
+
+        user_resp, repos_resp, prs_resp, issues_resp, events_resp = await asyncio.gather(
+            user_task,
+            repos_task,
+            prs_task,
+            issues_task,
+            events_task,
+        )
 
     user_resp.raise_for_status()
     repos_resp.raise_for_status()
 
     user = user_resp.json()
     repos = repos_resp.json()
+
+    total_prs = 0
+    if prs_resp.status_code == 200:
+        total_prs = int(prs_resp.json().get("total_count", 0) or 0)
+
+    total_issues = 0
+    if issues_resp.status_code == 200:
+        total_issues = int(issues_resp.json().get("total_count", 0) or 0)
 
     total_stars = sum(r.get("stargazers_count", 0) for r in repos if not r.get("fork"))
 
@@ -200,11 +321,51 @@ async def _fetch_profile(username: str) -> dict:
             lang_counts[lang] = lang_counts.get(lang, 0) + 1
     top_language = max(lang_counts, key=lang_counts.get) if lang_counts else None
 
+    contributed_to = 0
+    if GITHUB_TOKEN:
+        gql_query = """
+        query($login: String!) {
+          user(login: $login) {
+            repositoriesContributedTo(contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, REPOSITORY], includeUserRepositories: false) {
+              totalCount
+            }
+          }
+        }
+        """
+        try:
+            async with httpx.AsyncClient() as gql_client:
+                gql_resp = await gql_client.post(
+                    "https://api.github.com/graphql",
+                    json={"query": gql_query, "variables": {"login": username}},
+                    headers=_auth_headers("application/json"),
+                    timeout=15.0,
+                )
+            if gql_resp.status_code == 200:
+                body = gql_resp.json()
+                contributed_to = int(
+                    (((body.get("data") or {}).get("user") or {}).get("repositoriesContributedTo") or {}).get("totalCount", 0)
+                    or 0
+                )
+        except Exception as e:
+            logger.warning("GraphQL contributed_to failed: %s", e)
+
+    if contributed_to == 0 and events_resp.status_code == 200:
+        events = events_resp.json() if isinstance(events_resp.json(), list) else []
+        repos_seen = {
+            (event.get("repo") or {}).get("name")
+            for event in events
+            if (event.get("repo") or {}).get("name")
+        }
+        contributed_to = len(repos_seen)
+
     return {
         "public_repos": user.get("public_repos", 0),
         "total_stars": total_stars,
         "followers": user.get("followers", 0),
         "top_language": top_language,
+        "total_prs": total_prs,
+        "total_issues": total_issues,
+        "contributed_to": contributed_to,
     }
 
 

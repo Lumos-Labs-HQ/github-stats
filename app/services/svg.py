@@ -98,7 +98,153 @@ def get_available_themes() -> list[str]:
   return sorted(_THEMES.keys())
 
 
+def _rank_from_metrics(
+    total_commits: int,
+    total_prs: int,
+    total_issues: int,
+    total_stars: int,
+    contributed_to: int,
+) -> tuple[str, int]:
+    """Return (grade, ring_percent) based on weighted public activity metrics."""
+    score = (
+        (total_commits * 0.08)
+        + (total_prs * 1.8)
+        + (total_issues * 0.9)
+        + (total_stars * 2.0)
+        + (contributed_to * 1.4)
+    )
+
+    if score >= 900:
+        grade = "S"
+    elif score >= 700:
+        grade = "A+"
+    elif score >= 500:
+        grade = "A"
+    elif score >= 320:
+        grade = "B+"
+    elif score >= 220:
+        grade = "B"
+    elif score >= 140:
+        grade = "C+"
+    elif score >= 80:
+        grade = "C"
+    else:
+        grade = "D"
+
+    ring_percent = max(12, min(100, int(score / 9) if score > 0 else 12))
+    return grade, ring_percent
+
+
 def generate_stats_svg(
+    username: str,
+    total_stars: int,
+    total_commits: int,
+    total_prs: int,
+    total_issues: int,
+    contributed_to: int,
+    private_contributions: int = 0,
+    commits_year: Optional[int] = None,
+    colors: Optional[dict] = None,
+    hide_border: bool = False,
+) -> str:
+    """Generate a compact all-stats SVG card with icons and rank ring."""
+
+    colors = colors or _THEMES["default"]
+    grade, ring_percent = _rank_from_metrics(
+        total_commits=total_commits,
+        total_prs=total_prs,
+        total_issues=total_issues,
+        total_stars=total_stars,
+        contributed_to=contributed_to,
+    )
+
+    commits_label = f"Total Commits ({commits_year})" if commits_year else "Total Commits"
+    private_label = f"(+{private_contributions} private)" if private_contributions > 0 else ""
+
+    circumference = 2 * 3.14159 * 52
+    filled = round((ring_percent / 100) * circumference, 2)
+    remaining = round(circumference - filled, 2)
+
+    border = "none" if hide_border else colors["stroke"]
+
+    svg = f'''<svg width="632" height="251" viewBox="0 0 632 251" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">{_esc(username)} GitHub stats</title>
+  <defs>
+    <style>
+      .title {{ font: 700 18px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["currStreakNum"]}; }}
+      .label {{ font: 700 10px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["sideLabels"]}; }}
+      .value {{ font: 700 10px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["sideNums"]}; }}
+      .subtle {{ font: 400 8px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["dates"]}; }}
+      .icon {{ fill: none; stroke: {colors["fire"]}; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }}
+      .ring-grade {{ font: 700 26px 'Segoe UI', Ubuntu, Sans-Serif; fill: {colors["currStreakNum"]}; }}
+    </style>
+  </defs>
+
+  <rect x="1" y="1" width="630" height="249" rx="4" fill="{colors["background"]}" stroke="{border}" stroke-width="2"/>
+
+  <text x="26" y="40" class="title">{_esc(username)}'s GitHub Stats</text>
+
+  <g transform="translate(26, 66)">
+    <g transform="translate(0, 0)">
+      <path class="icon" d="M10 1.5l2.1 4.3 4.8.7-3.5 3.4.8 4.9L10 12.5 5.8 14.8l.8-4.9L3.1 6.5l4.8-.7L10 1.5z"/>
+      <text x="24" y="11" class="label">Total Stars Earned:</text>
+      <text x="276" y="11" class="value" text-anchor="end">{total_stars:,}</text>
+    </g>
+
+    <g transform="translate(0, 27)">
+      <circle class="icon" cx="10" cy="8" r="7"/>
+      <path class="icon" d="M10 8V4.5M10 8l3.2 1.8"/>
+      <path class="icon" d="M2 2.2h2.8M14.8 2.2h2.8"/>
+      <text x="24" y="11" class="label">{_esc(commits_label)}:</text>
+      <text x="276" y="11" class="value" text-anchor="end">{total_commits:,}</text>
+      <text x="24" y="23" class="subtle">{_esc(private_label)}</text>
+    </g>
+
+    <g transform="translate(0, 54)">
+      <circle class="icon" cx="4" cy="5" r="2"/>
+      <circle class="icon" cx="16" cy="2" r="2"/>
+      <circle class="icon" cx="16" cy="14" r="2"/>
+      <path class="icon" d="M6 5h5a3 3 0 0 0 3-3M6 5h5a3 3 0 0 1 3 3"/>
+      <text x="24" y="11" class="label">Total PRs:</text>
+      <text x="276" y="11" class="value" text-anchor="end">{total_prs:,}</text>
+    </g>
+
+    <g transform="translate(0, 81)">
+      <circle class="icon" cx="10" cy="8" r="7"/>
+      <path class="icon" d="M10 4.2v4.7M10 11.8h.01"/>
+      <text x="24" y="11" class="label">Total Issues:</text>
+      <text x="276" y="11" class="value" text-anchor="end">{total_issues:,}</text>
+    </g>
+
+    <g transform="translate(0, 108)">
+      <rect class="icon" x="3" y="2" width="14" height="12" rx="1.5"/>
+      <path class="icon" d="M3 6h14M7 14v3M13 14v3"/>
+      <text x="24" y="11" class="label">Contributed to:</text>
+      <text x="276" y="11" class="value" text-anchor="end">{contributed_to:,}</text>
+    </g>
+  </g>
+
+  <g transform="translate(500, 126)">
+    <circle cx="0" cy="0" r="52" fill="none" stroke="{colors["stroke"]}" stroke-opacity="0.35" stroke-width="8"/>
+    <circle
+      cx="0"
+      cy="0"
+      r="52"
+      fill="none"
+      stroke="{colors["ring"]}"
+      stroke-width="8"
+      stroke-linecap="round"
+      transform="rotate(-90)"
+      stroke-dasharray="{filled} {remaining}"
+    />
+    <text x="0" y="10" class="ring-grade" text-anchor="middle">{grade}</text>
+  </g>
+</svg>'''
+
+    return svg
+
+
+def generate_streak_svg(
     username: str,
     total_contributions: int,
     current_streak: int,
