@@ -12,15 +12,18 @@ from app.services.cache import CacheService
 from app.services.svg import (
     generate_stats_svg,
     generate_streak_svg,
+    generate_languages_svg,
+    generate_repository_svg,
+    generate_activity_svg,
     generate_error_svg,
-    resolve_theme,
+    resolve_card_theme,
     get_available_themes,
 )
 
 load_dotenv()
 
 cache_service = CacheService(os.getenv("REDIS_URL", "redis://localhost:6379"))
-CARD_VERSION = "v9"
+CARD_VERSION = "v11"
 
 
 def _month_year_range(month: int, year: int) -> tuple:
@@ -32,6 +35,38 @@ def _month_year_range(month: int, year: int) -> tuple:
         last_day = datetime(year, month + 1, 1, tzinfo=timezone.utc)
     fmt = lambda dt: dt.isoformat().replace("+00:00", "Z")
     return fmt(first_day), fmt(last_day)
+
+
+def _cache_key(*parts: object) -> str:
+    return "|".join([CARD_VERSION, *[str(part or "") for part in parts]])
+
+
+def _resolve_colors(
+    card_type: str,
+    theme: Optional[str],
+    stroke: Optional[str],
+    background: Optional[str],
+    ring: Optional[str],
+    fire: Optional[str],
+    curr_streak_num: Optional[str],
+    curr_streak_label: Optional[str],
+    side_nums: Optional[str],
+    side_labels: Optional[str],
+    dates: Optional[str],
+) -> dict:
+    return resolve_card_theme(
+        card_type=card_type,
+        theme=theme,
+        stroke=stroke,
+        background=background,
+        ring=ring,
+        fire=fire,
+        curr_streak_num=curr_streak_num,
+        curr_streak_label=curr_streak_label,
+        side_nums=side_nums,
+        side_labels=side_labels,
+        dates=dates,
+    )
 
 
 @asynccontextmanager
@@ -66,25 +101,27 @@ async def get_streak(
     sideLabels: Optional[str] = None,
     dates: Optional[str] = None,
     hide_border: bool = False,
+    rounded: bool = False,
 ):
     """Generate GitHub stats SVG card."""
-    cache_key = "|".join([
-        CARD_VERSION,
+    cache_key = _cache_key(
+        "streak",
         username,
-        str(year or ""),
-        str(month or ""),
-        str(theme or ""),
-        str(stroke or ""),
-        str(background or ""),
-        str(ring or ""),
-        str(fire or ""),
-        str(currStreakNum or ""),
-        str(currStreakLabel or ""),
-        str(sideNums or ""),
-        str(sideLabels or ""),
-        str(dates or ""),
-        str(hide_border),
-    ])
+        year,
+        month,
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+        hide_border,
+        rounded,
+    )
 
     cached = await cache_service.get_stats(cache_key)
     if cached:
@@ -117,17 +154,18 @@ async def get_streak(
         )
 
     streaks = calculate_streaks(stats_data["days"])
-    colors = resolve_theme(
-        theme=theme,
-        stroke=stroke,
-        background=background,
-        ring=ring,
-        fire=fire,
-        curr_streak_num=currStreakNum,
-        curr_streak_label=currStreakLabel,
-        side_nums=sideNums,
-        side_labels=sideLabels,
-        dates=dates,
+    colors = _resolve_colors(
+        "streak",
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
     )
 
     svg = generate_streak_svg(
@@ -142,6 +180,7 @@ async def get_streak(
         longest_streak_end=streaks.get("longest_streak_end"),
         colors=colors,
         hide_border=hide_border,
+        rounded=rounded,
     )
 
     await cache_service.set_stats(cache_key, {"svg": svg}, ttl=1800)  # 30 min
@@ -163,25 +202,26 @@ async def get_stats(
     sideLabels: Optional[str] = None,
     dates: Optional[str] = None,
     hide_border: bool = False,
+    rounded: bool = False,
 ):
     """Generate all GitHub stats SVG card."""
-    cache_key = "|".join([
-        CARD_VERSION,
+    cache_key = _cache_key(
         "stats",
         username,
-        str(year or ""),
-        str(theme or ""),
-        str(stroke or ""),
-        str(background or ""),
-        str(ring or ""),
-        str(fire or ""),
-        str(currStreakNum or ""),
-        str(currStreakLabel or ""),
-        str(sideNums or ""),
-        str(sideLabels or ""),
-        str(dates or ""),
-        str(hide_border),
-    ])
+        year,
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+        hide_border,
+        rounded,
+    )
 
     cached = await cache_service.get_stats(cache_key)
     if cached:
@@ -214,17 +254,18 @@ async def get_stats(
             media_type="image/svg+xml",
         )
 
-    colors = resolve_theme(
-        theme=theme or "tokyonight",
-        stroke=stroke,
-        background=background,
-        ring=ring,
-        fire=fire,
-        curr_streak_num=currStreakNum,
-        curr_streak_label=currStreakLabel,
-        side_nums=sideNums,
-        side_labels=sideLabels,
-        dates=dates,
+    colors = _resolve_colors(
+        "stats",
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
     )
 
     private_contributions = int(stats_data.get("restricted_count", 0) or 0)
@@ -236,11 +277,258 @@ async def get_stats(
         total_commits=total_commits,
         total_prs=int(stats_data.get("total_prs", 0) or 0),
         total_issues=int(stats_data.get("total_issues", 0) or 0),
-        contributed_to=int(stats_data.get("contributed_to", 0) or 0),
-        private_contributions=private_contributions,
+        followers=int(stats_data.get("followers", 0) or 0),
         commits_year=year,
         colors=colors,
         hide_border=hide_border,
+        rounded=rounded,
+    )
+
+    await cache_service.set_stats(cache_key, {"svg": svg}, ttl=1800)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/languages")
+async def get_languages(
+    username: str,
+    theme: Optional[str] = None,
+    stroke: Optional[str] = None,
+    background: Optional[str] = None,
+    ring: Optional[str] = None,
+    fire: Optional[str] = None,
+    currStreakNum: Optional[str] = None,
+    currStreakLabel: Optional[str] = None,
+    sideNums: Optional[str] = None,
+    sideLabels: Optional[str] = None,
+    dates: Optional[str] = None,
+    hide_border: bool = False,
+    rounded: bool = False,
+):
+    """Generate language distribution SVG card."""
+    cache_key = _cache_key(
+        "languages",
+        username,
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+        hide_border,
+        rounded,
+    )
+
+    cached = await cache_service.get_stats(cache_key)
+    if cached:
+        return Response(content=cached["svg"], media_type="image/svg+xml")
+
+    try:
+        stats_data = await fetch_github_stats(username, two_year=False)
+    except Exception:
+        cached = await cache_service.get_stats(cache_key)
+        if cached:
+            return Response(content=cached["svg"], media_type="image/svg+xml")
+        return Response(
+            content=generate_error_svg("Failed to fetch GitHub data"),
+            media_type="image/svg+xml",
+        )
+
+    if not stats_data:
+        return Response(
+            content=generate_error_svg(f"User '{username}' not found"),
+            media_type="image/svg+xml",
+        )
+
+    colors = _resolve_colors(
+        "languages",
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+    )
+    svg = generate_languages_svg(
+        username=username,
+        languages=stats_data.get("language_breakdown", []),
+        total_repos=int(stats_data.get("public_repos", 0) or 0),
+        total_stars=int(stats_data.get("total_stars", 0) or 0),
+        colors=colors,
+        hide_border=hide_border,
+        rounded=rounded,
+    )
+
+    await cache_service.set_stats(cache_key, {"svg": svg}, ttl=1800)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/repositories")
+@app.get("/repos")
+async def get_repositories(
+    username: str,
+    theme: Optional[str] = None,
+    stroke: Optional[str] = None,
+    background: Optional[str] = None,
+    ring: Optional[str] = None,
+    fire: Optional[str] = None,
+    currStreakNum: Optional[str] = None,
+    currStreakLabel: Optional[str] = None,
+    sideNums: Optional[str] = None,
+    sideLabels: Optional[str] = None,
+    dates: Optional[str] = None,
+    hide_border: bool = False,
+    rounded: bool = False,
+):
+    """Generate featured repositories SVG card."""
+    cache_key = _cache_key(
+        "repositories",
+        username,
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+        hide_border,
+        rounded,
+    )
+
+    cached = await cache_service.get_stats(cache_key)
+    if cached:
+        return Response(content=cached["svg"], media_type="image/svg+xml")
+
+    try:
+        stats_data = await fetch_github_stats(username, two_year=False)
+    except Exception:
+        cached = await cache_service.get_stats(cache_key)
+        if cached:
+            return Response(content=cached["svg"], media_type="image/svg+xml")
+        return Response(
+            content=generate_error_svg("Failed to fetch GitHub data"),
+            media_type="image/svg+xml",
+        )
+
+    if not stats_data:
+        return Response(
+            content=generate_error_svg(f"User '{username}' not found"),
+            media_type="image/svg+xml",
+        )
+
+    colors = _resolve_colors(
+        "repositories",
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+    )
+    svg = generate_repository_svg(
+        username=username,
+        repositories=stats_data.get("featured_repositories", []),
+        total_stars=int(stats_data.get("total_stars", 0) or 0),
+        colors=colors,
+        hide_border=hide_border,
+        rounded=rounded,
+    )
+
+    await cache_service.set_stats(cache_key, {"svg": svg}, ttl=1800)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/activity")
+async def get_activity(
+    username: str,
+    theme: Optional[str] = None,
+    stroke: Optional[str] = None,
+    background: Optional[str] = None,
+    ring: Optional[str] = None,
+    fire: Optional[str] = None,
+    currStreakNum: Optional[str] = None,
+    currStreakLabel: Optional[str] = None,
+    sideNums: Optional[str] = None,
+    sideLabels: Optional[str] = None,
+    dates: Optional[str] = None,
+    hide_border: bool = False,
+    rounded: bool = False,
+):
+    """Generate recent public activity SVG card."""
+    cache_key = _cache_key(
+        "activity",
+        username,
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+        hide_border,
+        rounded,
+    )
+
+    cached = await cache_service.get_stats(cache_key)
+    if cached:
+        return Response(content=cached["svg"], media_type="image/svg+xml")
+
+    try:
+        stats_data = await fetch_github_stats(username, two_year=False)
+    except Exception:
+        cached = await cache_service.get_stats(cache_key)
+        if cached:
+            return Response(content=cached["svg"], media_type="image/svg+xml")
+        return Response(
+            content=generate_error_svg("Failed to fetch GitHub data"),
+            media_type="image/svg+xml",
+        )
+
+    if not stats_data:
+        return Response(
+            content=generate_error_svg(f"User '{username}' not found"),
+            media_type="image/svg+xml",
+        )
+
+    colors = _resolve_colors(
+        "activity",
+        theme,
+        stroke,
+        background,
+        ring,
+        fire,
+        currStreakNum,
+        currStreakLabel,
+        sideNums,
+        sideLabels,
+        dates,
+    )
+    svg = generate_activity_svg(
+        username=username,
+        recent_events=int(stats_data.get("recent_events", 0) or 0),
+        active_repos=int(stats_data.get("active_repos", 0) or 0),
+        activity_counts=stats_data.get("activity_counts", {}),
+        activity_repositories=stats_data.get("activity_repositories", []),
+        colors=colors,
+        hide_border=hide_border,
+        rounded=rounded,
     )
 
     await cache_service.set_stats(cache_key, {"svg": svg}, ttl=1800)
@@ -301,6 +589,14 @@ async def debug_stats(username: str, month: Optional[int] = None, year: Optional
             "total_prs": stats_data.get("total_prs"),
             "total_issues": stats_data.get("total_issues"),
             "contributed_to": stats_data.get("contributed_to"),
+            "language_breakdown": stats_data.get("language_breakdown"),
+            "featured_repositories": stats_data.get("featured_repositories"),
+            "recent_events": stats_data.get("recent_events"),
+            "active_repos": stats_data.get("active_repos"),
+            "dominant_event": stats_data.get("dominant_event"),
+            "activity_types": stats_data.get("activity_types"),
+            "activity_counts": stats_data.get("activity_counts"),
+            "activity_repositories": stats_data.get("activity_repositories"),
         },
         "rate_limit_remaining": stats_data.get("rate_limit_remaining"),
     }
