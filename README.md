@@ -61,7 +61,7 @@ docker-compose up -d
 GET /stats?username={github_username}
 ```
 
-This endpoint renders the full stats card:
+This endpoint renders the overview stats card:
 
 - Total Stars Earned
 - Total Commits (supports `year` filter)
@@ -86,11 +86,54 @@ GET /streak?username={github_username}
 
 This endpoint renders streak stats (Total Contributions, Current Streak, Longest Streak) with optional `month` and `year` filters.
 
+### Get Language Card
+
+```
+GET /languages?username={github_username}
+```
+
+This endpoint renders a language breakdown card showing:
+
+- Primary languages across public repositories
+- Repo share by language
+- Stars accumulated per language
+- Total public repos and stars
+
+### Get Repository Card
+
+```
+GET /repositories?username={github_username}
+GET /repos?username={github_username}
+```
+
+This endpoint renders a featured repositories card showing:
+
+- Top public repositories ranked by stars/forks/recency
+- Repo descriptions
+- Primary language and last updated date
+- Total star count headline
+
+### Get Activity Card
+
+```
+GET /activity?username={github_username}
+```
+
+This endpoint renders a recent public activity card showing:
+
+- Recent public event volume
+- Most common activity type
+- Active repositories in the recent event window
+- Repositories with the most recent activity
+
 Theme support:
 
 ```
 GET /stats?username=username&theme=default
 GET /streak?username=username&theme=default
+GET /languages?username=username&theme=paper
+GET /repositories?username=username&theme=paper
+GET /activity?username=username&theme=graphite
 ```
 
 Available theme names:
@@ -103,6 +146,7 @@ Color override support (same parameter style as streak stats generators):
 
 ```
 GET /stats?username=username&stroke=FF6F61&background=1E1E2E&ring=FF6F61&fire=FF6F61&currStreakNum=FF6F61&currStreakLabel=FF6F61&sideNums=FF6F61&sideLabels=FF6F61&dates=FF6F61&hide_border=true
+GET /languages?username=username&theme=paper&stroke=D1D5DB&background=FAFAF8&ring=0F766E&fire=B45309&currStreakNum=111827&currStreakLabel=0F766E&sideNums=111827&sideLabels=374151&dates=6B7280
 ```
 
 **Response:** SVG image (image/svg+xml)
@@ -123,11 +167,11 @@ GET /health
 ```
 app/
 ├── main.py              # FastAPI application & endpoints
-├── github.py            # GitHub API integration (GraphQL + REST)
+├── github.py            # GitHub API integration + repo/activity aggregates
 └── services/
     ├── stats.py         # Streak calculation logic
     ├── cache.py         # Redis caching layer
-    └── svg.py           # SVG card generation
+    └── svg.py           # SVG card generation for all card types
 ```
 
 ## How It Works
