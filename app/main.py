@@ -269,7 +269,9 @@ async def get_stats(
     )
 
     private_contributions = int(stats_data.get("restricted_count", 0) or 0)
-    total_commits = int(stats_data.get("total_contributions", 0) or 0) + private_contributions
+    total_commits = (
+        int(stats_data.get("total_contributions", 0) or 0) + private_contributions
+    )
 
     svg = generate_stats_svg(
         username=username,
@@ -554,7 +556,9 @@ async def themes():
 
 
 @app.get("/debug")
-async def debug_stats(username: str, month: Optional[int] = None, year: Optional[int] = None):
+async def debug_stats(
+    username: str, month: Optional[int] = None, year: Optional[int] = None
+):
     """Return raw stats data as JSON for debugging."""
     from_date, to_date = None, None
     two_year = True
