@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import List, Dict, Optional
 
 
@@ -37,105 +37,83 @@ def calculate_streaks(
     month: Optional[int] = None,
     year: Optional[int] = None,
 ) -> dict:
-    """
-    Calculate current streak, longest streak, and totals.
-
-    Returns dict with keys:
-        current_streak, current_streak_start, current_streak_end,
-        longest_streak, longest_streak_start, longest_streak_end,
-        total_contributions, first_contribution
-    """
+    """Calculate streak stats using the same forward-scan approach as github-readme-streak-stats."""
+    empty = {
+        "current_streak": 0,
+        "current_streak_start": None,
+        "current_streak_end": None,
+        "longest_streak": 0,
+        "longest_streak_start": None,
+        "longest_streak_end": None,
+        "total_contributions": 0,
+        "first_contribution": None,
+    }
     if not days:
-        return {
-            "current_streak": 0, "current_streak_start": None, "current_streak_end": None,
-            "longest_streak": 0, "longest_streak_start": None, "longest_streak_end": None,
-            "total_contributions": 0, "first_contribution": None,
-        }
+        return empty
 
     days = _deduplicate_days(days)
     sorted_days = sorted(days, key=lambda x: x["date"])
 
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
+    tomorrow = today + timedelta(days=1)
     current_year = today.year
-    contributions = []
-    total_contributions = 0
 
+    contributions: list[tuple[date, int]] = []
     for day in sorted_days:
         d = datetime.fromisoformat(day["date"]).date()
-        if d <= today:
-            if month and year:
-                if d.month == month and d.year == year:
-                    contributions.append((d, day["count"]))
-                    total_contributions += day["count"]
-            else:
-                contributions.append((d, day["count"]))
-                total_contributions += day["count"]
+        count = day["count"]
+        include_day = d <= today or (d == tomorrow and count > 0)
+        if not include_day:
+            continue
+        if month and year and not (d.month == month and d.year == year):
+            continue
+        contributions.append((d, count))
 
     if not contributions:
-        return {
-            "current_streak": 0, "current_streak_start": None, "current_streak_end": None,
-            "longest_streak": 0, "longest_streak_start": None, "longest_streak_end": None,
-            "total_contributions": 0, "first_contribution": None,
-        }
+        return empty
 
-    contrib_dict = {d: c for d, c in contributions}
-    first_contribution_date = contributions[0][0]
+    contributions.sort(key=lambda item: item[0])
+    timeline = {d: count for d, count in contributions}
+    start_date = contributions[0][0]
+    end_date = contributions[-1][0]
 
-    # ------------------------------------------------------------------
-    # Current streak: count backwards from today, or yesterday if today is 0
-    # ------------------------------------------------------------------
-    check_date = today if contrib_dict.get(today, 0) > 0 else today - timedelta(days=1)
-    current_streak = 0
-    current_streak_end: Optional[date] = None
-    current_streak_start: Optional[date] = None
+    stats = {
+        "total_contributions": 0,
+        "first_contribution": None,
+        "longest_streak": {"start": start_date, "end": start_date, "length": 0},
+        "current_streak": {"start": end_date, "end": end_date, "length": 0},
+    }
 
-    while check_date >= first_contribution_date:
-        if contrib_dict.get(check_date, 0) > 0:
-            if current_streak_end is None:
-                current_streak_end = check_date
-            current_streak += 1
-            current_streak_start = check_date
-            check_date -= timedelta(days=1)
-        else:
-            break
+    scan_date = start_date
+    while scan_date <= end_date:
+        count = timeline.get(scan_date, 0)
+        stats["total_contributions"] += count
 
-    # ------------------------------------------------------------------
-    # Longest streak: scan full date range
-    # ------------------------------------------------------------------
-    longest_streak = 0
-    longest_streak_start: Optional[date] = None
-    longest_streak_end: Optional[date] = None
+        if count > 0:
+            stats["current_streak"]["length"] += 1
+            stats["current_streak"]["end"] = scan_date
+            if stats["current_streak"]["length"] == 1:
+                stats["current_streak"]["start"] = scan_date
+            if stats["first_contribution"] is None:
+                stats["first_contribution"] = scan_date
+            if stats["current_streak"]["length"] > stats["longest_streak"]["length"]:
+                stats["longest_streak"] = stats["current_streak"].copy()
+        elif scan_date != today:
+            stats["current_streak"] = {"start": end_date, "end": end_date, "length": 0}
 
-    current_run = 0
-    run_start: Optional[date] = None
-    run_end: Optional[date] = None
-
-    scan_date = first_contribution_date
-    last_date = contributions[-1][0]
-
-    while scan_date <= last_date:
-        if contrib_dict.get(scan_date, 0) > 0:
-            if current_run == 0:
-                run_start = scan_date
-            run_end = scan_date
-            current_run += 1
-            if current_run > longest_streak:
-                longest_streak = current_run
-                longest_streak_start = run_start
-                longest_streak_end = run_end
-        else:
-            current_run = 0
-            run_start = None
-            run_end = None
         scan_date += timedelta(days=1)
 
+    current_streak = stats["current_streak"]
+    longest_streak = stats["longest_streak"]
+    first_contribution = stats["first_contribution"]
+
     return {
-        "current_streak": current_streak,
-        "current_streak_start": _fmt_date(current_streak_start, current_year) if current_streak_start else None,
-        "current_streak_end": _fmt_date(current_streak_end, current_year) if current_streak_end else None,
-        "longest_streak": longest_streak,
-        "longest_streak_start": _fmt_date(longest_streak_start, current_year) if longest_streak_start else None,
-        "longest_streak_end": _fmt_date(longest_streak_end, current_year) if longest_streak_end else None,
-        "total_contributions": total_contributions,
-        "first_contribution": _fmt_date(first_contribution_date, current_year),
+        "current_streak": current_streak["length"],
+        "current_streak_start": _fmt_date(current_streak["start"], current_year) if current_streak["length"] > 0 else None,
+        "current_streak_end": _fmt_date(current_streak["end"], current_year) if current_streak["length"] > 0 else None,
+        "longest_streak": longest_streak["length"],
+        "longest_streak_start": _fmt_date(longest_streak["start"], current_year) if longest_streak["length"] > 0 else None,
+        "longest_streak_end": _fmt_date(longest_streak["end"], current_year) if longest_streak["length"] > 0 else None,
+        "total_contributions": stats["total_contributions"],
+        "first_contribution": _fmt_date(first_contribution, current_year) if first_contribution else None,
     }
